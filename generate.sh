@@ -99,4 +99,5 @@ echo -e '\t$(LOCAL_DIR)/'$target.mk '\' >> AndroidProducts.mk
 		done
 	done
 done
+echo -e '\t$(LOCAL_DIR)/treble_arm64_cam.mk \' >> AndroidProducts.mk
 echo >> AndroidProducts.mk
