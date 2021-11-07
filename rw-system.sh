@@ -197,7 +197,9 @@ changeKeylayout() {
         changed=true
     fi
 
-    if getprop ro.build.overlay.deviceid |grep -q -e RMX1931 -e RMX1941 -e CPH1859 -e CPH1861 -e RMX2185;then
+    if ( getprop ro.build.overlay.deviceid |grep -q -e RMX1931 -e RMX1941 -e CPH1859 -e CPH1861 -e RMX2185) ||
+	    ( grep -q OnePlus /odm/etc/$(getprop ro.boot.prjname)/*.prop);then
+	echo 1 > /proc/touchpanel/double_tap_enable
         cp /system/phh/oppo-touchpanel.kl /mnt/phh/keylayout/touchpanel.kl
 	cp /system/phh/oppo-touchpanel.kl /mnt/phh/keylayout/mtk-tpd.kl
         chmod 0644 /mnt/phh/keylayout/touchpanel.kl
@@ -305,7 +307,12 @@ fi
 
 foundFingerprint=false
 for manifest in /vendor/manifest.xml /vendor/etc/vintf/manifest.xml /odm/etc/vintf/manifest.xml;do
-    if grep -q -e android.hardware.biometrics.fingerprint -e vendor.oppo.hardware.biometrics.fingerprint $manifest;then
+    if grep -q \
+            -e android.hardware.biometrics.fingerprint \
+            -e vendor.oppo.hardware.biometrics.fingerprint \
+            -e vendor.oplus.hardware.biometrics.fingerprint \
+            $manifest;
+        then
         foundFingerprint=true
     fi
 done
@@ -398,7 +405,8 @@ if getprop ro.vendor.build.fingerprint | grep -iq \
     -e xiaomi/equuleus/equuleus -e motorola/nora -e xiaomi/nitrogen \
     -e motorola/hannah -e motorola/james -e motorola/pettyl -e xiaomi/cepheus \
     -e xiaomi/grus -e xiaomi/cereus -e xiaomi/cactus -e xiaomi/raphael -e xiaomi/davinci \
-    -e xiaomi/ginkgo -e xiaomi/laurel_sprout -e xiaomi/andromeda \
+    -e xiaomi/ginkgo -e xiaomi/willow -e xiaomi/laurel_sprout -e xiaomi/andromeda \
+    -e iaomi/renoir \
     -e redmi/curtana -e redmi/picasso \
     -e bq/Aquaris_M10 ; then
     mount -o bind /mnt/phh/empty_dir /vendor/lib64/soundfx
@@ -470,10 +478,6 @@ if getprop ro.vendor.build.fingerprint | grep -iq -e iaomi/cactus -e iaomi/cereu
     setprop debug.stagefright.omx_default_rank 0
 fi
 
-if getprop ro.vendor.build.fingerprint | grep -iq -e xiaomi/ginkgo -e  xiaomi/willow; then
-    mount -o bind /system/phh/empty /vendor/lib/soundfx/libvolumelistener.so
-fi
-
 mount -o bind /system/phh/empty /vendor/lib/libpdx_default_transport.so
 mount -o bind /system/phh/empty /vendor/lib64/libpdx_default_transport.so
 
@@ -522,6 +526,11 @@ if getprop ro.vendor.build.fingerprint | grep -iq -e xiaomi/daisy; then
     setprop debug.sf.enable_hwc_vds 1
 fi
 
+if getprop ro.vendor.build.fingerprint | grep -iq -e Redmi/merlin; then
+    setprop debug.sf.latch_unsignaled 1
+    setprop debug.sf.enable_hwc_vds 0
+fi
+
 if getprop ro.vendor.build.fingerprint | grep -iq -E -e 'huawei|honor' || getprop persist.sys.overlay.huawei | grep -iq -E -e 'true'; then
     p=/product/etc/nfc/libnfc_nxp_*_*.conf
     mount -o bind "$p" /system/etc/libnfc-nxp.conf ||
@@ -555,6 +564,8 @@ fi
 # This matches both Razer Phone 1 & 2
 if getprop ro.vendor.build.fingerprint |grep -qE razer/cheryl;then
 	setprop ro.audio.monitorRotation true
+	mount -o bind /system/phh/empty /vendor/overlay/BluetoothResCommon.apk
+	mount -o bind /system/phh/empty /vendor/overlay/RazerCherylBluetoothRes.apk
 fi
 
 if getprop ro.vendor.build.fingerprint | grep -qiE '^samsung'; then
@@ -642,6 +653,13 @@ if getprop ro.vendor.build.fingerprint | grep -q -e nubia/NX669; then
     mount /vendor/etc/audio/sku_${sku}_qssi/audio_policy_configuration.xml /vendor/etc/audio/sku_$sku/audio_policy_configuration.xml
 fi
 
+# For ZF8, the "best" audio policy isn't the one for QSSI
+if getprop ro.vendor.build.fingerprint |grep -q -e /ASUS_I006D:;then
+    umount /vendor/etc/audio
+    sku="$(getprop ro.boot.product.vendor.sku)"
+    mount /vendor/etc/audio/ZS590KS/audio_policy_configuration_ZS590KS.xml /vendor/etc/audio/sku_$sku/audio_policy_configuration.xml
+fi
+
 setprop ctl.stop console
 dmesg -n 1
 if [ -f /system/phh/secure ];then
@@ -663,8 +681,8 @@ if [ -f /system/phh/secure ];then
     copyprop ro.product.device ro.product.vendor.device
     copyprop ro.product.system.name ro.vendor.product.name
     copyprop ro.product.name ro.vendor.product.name
-    copyprop ro.product.system.name ro.product.vendor.device
-    copyprop ro.product.name ro.product.vendor.device
+    copyprop ro.product.system.name ro.product.vendor.name
+    copyprop ro.product.name ro.product.vendor.name
     copyprop ro.system.product.brand ro.vendor.product.brand
     copyprop ro.product.brand ro.vendor.product.brand
     copyprop ro.product.system.model ro.vendor.product.model
@@ -804,6 +822,10 @@ fi
 
 if [ -f /proc/oppoVersion/prjVersion ];then
     setprop ro.separate.soft $(cat /proc/oppoVersion/prjVersion)
+fi
+
+if grep -q -F ro.separate.soft /odm/build.prop;then
+	setprop ro.separate.soft "$(sed -nE 's/^ro.separate.soft=(.*)/\1/p' /odm/build.prop)"
 fi
 
 echo 1 >  /proc/tfa98xx/oppo_tfa98xx_fw_update
